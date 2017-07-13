@@ -42,8 +42,8 @@ struct sniff_tcp{
 	u_short dport;
 	u_int seq;
 	u_int ack;
-	u_char offrs;
-	#define OFF(th)	(((th)->offrs & 0xf0) >> 4)	
+	u_char hlrs;
+	#define HL(th)	(((th)->offrs & 0xf0) >> 4)	
 	u_char flags;
 	#define FIN	0x01
 	#define SYN	0x01
@@ -68,7 +68,12 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	const char *payload;
 	u_char flag;
 	int ip_hl;
+	int tcp_hl;
+	int tcp_op_l;
+	int pay_l;
 
+	printf("Pacekt #[%d], length : [%d]Bytes, \n\n", count);	
+	
 	//print Ehternet Header
 	ethernet = (struct sniff_ethernet *)(packet);
 
@@ -93,12 +98,12 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	//print IP Header
 	ip = (struct sniff_ip*)(packet + SIZE_ETHERNET);
 
-	printf("\nIPv4 Header info >>>\n");	
+	//printf("\nIPv4 Header info >>>\n");	
 
-	printf("IP version : %d\n", (ip->vhl) >> 4);
+	//printf("IP version : %d\n", (ip->vhl) >> 4);
 	
 	ip_hl = (ip->vhl & 0x0f) * 4;
-	printf("Header Length : %d\n", ip_hl);
+	/*printf("Header Length : %d\n", ip_hl);
 	printf("Type of Service : %d\n", (ip->tos));
 	printf("Total Length : %d\n", (ip->len));
 	printf("Identification : %d\n", (ip->id));
@@ -122,8 +127,8 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	printf("\nFagement Offset : %d\n", (ip->off) & 0x1fff);
 	printf("Time To Live : %d\n", ip->ttl);
 	printf("Protocol : %d\n", ip->pro);
-	printf("Check Sum : %d\n", ip->sum);
-	printf("Source Addr : %s\n", inet_ntoa(ip->ip_src));
+	printf("Check Sum : %d\n", ip->sum);*/
+	printf("\nSource Addr : %s\n", inet_ntoa(ip->ip_src));
 	printf("Destination Addr : %s\n", inet_ntoa(ip->ip_dst));
 
 	//print TCP Header
@@ -132,6 +137,25 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 
 	printf("Source Port : %d\n", ntohs(tcp->sport));
 	printf("Destination Port : %d\n", ntohs(tcp->dport));
+
+	tcp_hl = ((tcp->hlrs & 0xf0) >> 4) * 4;
+	printf("TCP Header Length : %dBytes\n", tcp_hl);
+
+	payload = (u_char *)(packet + SIZE_ETHERNET + ip_hl + tcp_hl);
+	pay_l = ntohs(ip->len) - (ip_hl + tcp_hl);
+
+	if(pay_l > 0){
+		printf("Payload Size : %dBytes\n", pay_l);
+
+		for(int i=0; i<pay_l; i++)
+			printf("%c", payload[i]);
+	
+		printf("\n");
+	}
+	
+	count++;
+
+	printf("---------------------------------------------------------------------\n");
 }
 
 
@@ -188,9 +212,8 @@ int main(int argc, char *argv[])
 		/* Grab a packet */
 		flag = pcap_next_ex(handle, &header, &packet);
 		/* Print its length */
-		printf("Jacked a packet with length of [%d]\n", header->len);
 		
-		pcap_loop(handle, 1, get_packet, NULL);
+		pcap_loop(handle, 10, get_packet, NULL);
 
 	
 		/* And close the session */
