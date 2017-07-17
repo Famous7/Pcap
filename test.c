@@ -9,9 +9,6 @@
 #include <arpa/inet.h>
 
 #define SIZE_ETHERNET 14
-
-#define SNAP_LEN 1518
-
 #define ETHER_ADDR_LEN	6
 
 struct sniff_ethernet{
@@ -26,10 +23,6 @@ struct sniff_ip{
 	u_short	len;
 	u_short	id;
 	u_short off;
-	#define IP_RF 0x8000
-	#define	IP_DF 0x4000
-	#define IP_MF 0x2000
-	#define IP_OFFMASK 0x1fff
 	u_char ttl;
 	u_char pro;
 	u_short sum;
@@ -42,18 +35,8 @@ struct sniff_tcp{
 	u_short dport;
 	u_int seq;
 	u_int ack;
-	u_char hlrs;
-	#define HL(th)	(((th)->offrs & 0xf0) >> 4)	
+	u_char hlrs;	
 	u_char flags;
-	#define FIN	0x01
-	#define SYN	0x01
-	#define RST	0x01
-	#define PUSH	0x01
-	#define ACK	0x01
-	#define URG	0x01
-	#define ECE	0x01
-	#define CWP	0x01
-	#define FLAGS	(FIN|SYN|RST|PUSH|ACK|URG|ECE|CWP)
 	u_short win;
 	u_short sum;
 	u_short urp;
@@ -66,18 +49,16 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	const struct sniff_ip *ip;
 	const struct sniff_tcp *tcp;
 	const char *payload;
-	u_char flag;
 	int ip_hl;
 	int tcp_hl;
-	int tcp_op_l;
 	int pay_l;
 
-	printf("Pacekt #[%d], length : [%d]Bytes, \n\n", count);	
+	printf("Pacekt #[%d]\n", count++);	
 	
 	//print Ehternet Header
 	ethernet = (struct sniff_ethernet *)(packet);
 
-	printf("Ethernet Source Addr >> ");		
+	printf("Ethernet Source Addr >> ");	
 
 	for(int i=0; i<6; i++){
 		printf("%02x", (ethernet->ether_shost[i]));
@@ -97,37 +78,9 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 
 	//print IP Header
 	ip = (struct sniff_ip*)(packet + SIZE_ETHERNET);
-
-	//printf("\nIPv4 Header info >>>\n");	
-
-	//printf("IP version : %d\n", (ip->vhl) >> 4);
 	
 	ip_hl = (ip->vhl & 0x0f) * 4;
-	/*printf("Header Length : %d\n", ip_hl);
-	printf("Type of Service : %d\n", (ip->tos));
-	printf("Total Length : %d\n", (ip->len));
-	printf("Identification : %d\n", (ip->id));
 	
-	flag = (ip->off) & 0xe000;
-
-	printf("Flag : %x\n", flag);		
-
-	switch(flag){
-		case IP_RF:
-			printf("X[%d]\n", flag);
-			break;
-		case IP_DF:		
-			printf("DF[%d]\n", flag);
-			break;
-		case IP_MF:		
-			printf("MF[%d]\n", flag);
-			break;
-	}
-		
-	printf("\nFagement Offset : %d\n", (ip->off) & 0x1fff);
-	printf("Time To Live : %d\n", ip->ttl);
-	printf("Protocol : %d\n", ip->pro);
-	printf("Check Sum : %d\n", ip->sum);*/
 	printf("\nSource Addr : %s\n", inet_ntoa(ip->ip_src));
 	printf("Destination Addr : %s\n", inet_ntoa(ip->ip_dst));
 
@@ -139,23 +92,29 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	printf("Destination Port : %d\n", ntohs(tcp->dport));
 
 	tcp_hl = ((tcp->hlrs & 0xf0) >> 4) * 4;
-	printf("TCP Header Length : %dBytes\n", tcp_hl);
+	printf("TCP Header Length : %dBytes", tcp_hl);
 
 	payload = (u_char *)(packet + SIZE_ETHERNET + ip_hl + tcp_hl);
 	pay_l = ntohs(ip->len) - (ip_hl + tcp_hl);
 
 	if(pay_l > 0){
-		printf("Payload Size : %dBytes\n", pay_l);
-
-		for(int i=0; i<pay_l; i++)
-			printf("%c", payload[i]);
-	
-		printf("\n");
+		printf("\nPayload Size : %dBytes\n", pay_l);
+		if(strncmp(payload, "GET", 3) | strncmp(payload, "POST", 4) | strncmp(payload, "HTTP", 4) == 0){
+			for(int i=0; i<pay_l; i++){
+				if(isprint(payload[i]))
+					printf("%c", payload[i]);
+				else
+					printf(".");
+			}
+		}
+		else {
+			for(int i=0; i<pay_l; i++){
+				printf("%02x", payload[i]);
+			}		
+		}
 	}
-	
-	count++;
 
-	printf("---------------------------------------------------------------------\n");
+	printf("\n\n---------------------------------------------------------------------\n\n");
 }
 
 
@@ -213,7 +172,7 @@ int main(int argc, char *argv[])
 		flag = pcap_next_ex(handle, &header, &packet);
 		/* Print its length */
 		
-		pcap_loop(handle, 10, get_packet, NULL);
+		pcap_loop(handle, 0, get_packet, NULL);
 
 	
 		/* And close the session */
