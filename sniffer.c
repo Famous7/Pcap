@@ -11,6 +11,8 @@
 #define SIZE_ETHERNET 14
 #define ETHER_ADDR_LEN	6
 
+//gg
+
 struct sniff_ethernet{
 	u_char ether_dhost[ETHER_ADDR_LEN];
 	u_char ether_shost[ETHER_ADDR_LEN];
