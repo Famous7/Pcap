@@ -53,6 +53,7 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	int tcp_hl;
 	int pay_l;
 
+
 	printf("Pacekt #[%d]\n", count++);	
 	
 	//print Ehternet Header
@@ -80,19 +81,32 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	ip = (struct sniff_ip*)(packet + SIZE_ETHERNET);
 	
 	ip_hl = (ip->vhl & 0x0f) * 4;
+	printf("\nIP Header size : %dBytes\n", ip_hl);
+
+
+/*	Legacy Code... my system is little endian but network byte order is big endian
+	why printf ip address is work? 
+
+	for(int i=0; i<4; i++)
+		printf("%d ", packet[SIZE_ETHERNET+i+12]);
 	
-	printf("\nSource Addr : %s\n", inet_ntoa(ip->ip_src));
+	for(int i=0; i<4; i++)
+		printf("%d ", packet[SIZE_ETHERNET+i+16]);
+*/
+
+	printf("Source Addr : %s\n", inet_ntoa(ip->ip_src));
 	printf("Destination Addr : %s\n", inet_ntoa(ip->ip_dst));
 
 	//print TCP Header
 
 	tcp = (struct sniff_tcp *)(packet + SIZE_ETHERNET + ip_hl);
 
-	printf("Source Port : %d\n", ntohs(tcp->sport));
-	printf("Destination Port : %d\n", ntohs(tcp->dport));
-
 	tcp_hl = ((tcp->hlrs & 0xf0) >> 4) * 4;
-	printf("TCP Header Length : %dBytes", tcp_hl);
+	printf("\nTCP Header Length : %dBytes", tcp_hl);
+	
+	printf("\nSource Port : %d\n", ntohs(tcp->sport));
+	printf("Destination Port : %d\n", ntohs(tcp->dport));
+	//print HTTP Payload
 
 	payload = (u_char *)(packet + SIZE_ETHERNET + ip_hl + tcp_hl);
 	pay_l = ntohs(ip->len) - (ip_hl + tcp_hl);
@@ -103,18 +117,22 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 			for(int i=0; i<pay_l; i++){
 				if(isprint(payload[i]))
 					printf("%c", payload[i]);
+				else if(payload[i] == '\r' || payload[i] == '\n')
+					printf("%c", payload[i]);
 				else
 					printf(".");
 			}
 		}
 		else {
 			for(int i=0; i<pay_l; i++){
-				printf("%02x", payload[i]);
+				if(isprint(payload[i]))
+					printf("%02x", payload[i]);
+				else
+					printf(".");
 			}		
 		}
 	}
-
-	printf("\n\n---------------------------------------------------------------------\n\n");
+	printf("\n---------------------------------------------------------------------\n\n");
 }
 
 
@@ -156,7 +174,6 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 
-
 		/* Compile and apply the filter */
 		if (pcap_compile(handle, &fp, filter_exp, 0, net) == -1) {
 			fprintf(stderr, "Couldn't parse filter %s: %s\n", filter_exp, pcap_geterr	
@@ -170,10 +187,8 @@ int main(int argc, char *argv[])
 		}
 		/* Grab a packet */
 		flag = pcap_next_ex(handle, &header, &packet);
-		/* Print its length */
-		
-		pcap_loop(handle, 0, get_packet, NULL);
 
+		pcap_loop(handle, 0, get_packet, NULL);
 	
 		/* And close the session */
 		pcap_close(handle);
