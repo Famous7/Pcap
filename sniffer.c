@@ -7,6 +7,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/time.h>
+#include <time.h>
 
 #define SIZE_ETHERNET 14
 #define ETHER_ADDR_LEN	6
@@ -43,20 +45,33 @@ struct sniff_tcp{
 	u_short urp;
 };
 
-void get_packet(const struct pcap_pkthdr *header, const u_char *packet) {
+void get_packet(struct pcap_pkthdr *header, const u_char *packet) {
 	static int count = 1;
+	
 	const struct sniff_ethernet *ethernet;
 	const struct sniff_ip *ip;
 	const struct sniff_tcp *tcp;
 	const char *payload;
+	
 	int ip_hl;
 	int tcp_hl;
 	int pay_l;
 	char sip[16];
 	char dip[16];
 
+	struct tm *today;
+	time_t nowtime;
+	char tmbuf[64];
+	char buf[64];
+	
+	gettimeofday(&(header->ts), NULL);	
+	nowtime = header->ts.tv_sec;
+	today = localtime(&nowtime);
 
-	printf("Pacekt #[%d]\n", count);	
+	strftime(tmbuf, sizeof(tmbuf), "%Y-%m-%d %H:%M:%S", today); //add localtime info
+	snprintf(buf, sizeof(buf), "%s.%06ld", tmbuf, header->ts.tv_usec);	//add microseconds
+
+	printf("Pacekt #[%d] at%s\n", count, buf);	
 	//print Ehternet Header
 	ethernet = (struct sniff_ethernet *)(packet);
 
