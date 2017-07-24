@@ -71,7 +71,7 @@ void get_packet(struct pcap_pkthdr *header, const u_char *packet) {
 	strftime(tmbuf, sizeof(tmbuf), "%Y-%m-%d %H:%M:%S", today); //add localtime info
 	snprintf(buf, sizeof(buf), "%s.%06ld", tmbuf, header->ts.tv_usec);	//add microseconds
 
-	printf("Pacekt #[%d] at%s\n", count, buf);	
+	printf("Pacekt #[%d] at [%s]\n", count, buf);	
 	//print Ehternet Header
 	ethernet = (struct sniff_ethernet *)(packet);
 
