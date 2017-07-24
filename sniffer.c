@@ -133,15 +133,12 @@ void get_packet(const struct pcap_pkthdr *header, const u_char *packet) {
 int main(int argc, char *argv[]){
 		pcap_t *handle;			/* Session handle */
 		char errbuf[PCAP_ERRBUF_SIZE];	/* Error string */
-		struct bpf_program fp;		/* The compiled filter */
-		bpf_u_int32 mask;		/* Our netmask */
-		bpf_u_int32 net;		/* Our IP */
 		struct pcap_pkthdr *header;	/* The header that pcap gives us */
 		const u_char *packet;		/* The actual packet */
 
 		if(argc < 2){
 			printf("./sniffer interface_name \n");
-			exit(0);
+			return(1);
 		}
 
 		/* Open the session in promiscuous mode */
@@ -167,7 +164,6 @@ int main(int argc, char *argv[]){
 			}
 		}
 
-		/* And close the session */
 		pcap_close(handle);
 		return(0);
 }
