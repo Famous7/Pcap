@@ -10,8 +10,7 @@
 
 #define SIZE_ETHERNET 14
 #define ETHER_ADDR_LEN	6
-
-//gg
+#define ETHERTYPE_IP 0x0800
 
 struct sniff_ethernet{
 	u_char ether_dhost[ETHER_ADDR_LEN];
@@ -44,8 +43,7 @@ struct sniff_tcp{
 	u_short urp;
 };
 
-void
-get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
+void get_packet(const struct pcap_pkthdr *header, const u_char *packet) {
 	static int count = 1;
 	const struct sniff_ethernet *ethernet;
 	const struct sniff_ip *ip;
@@ -54,15 +52,15 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	int ip_hl;
 	int tcp_hl;
 	int pay_l;
+	char sip[16];
+	char dip[16];
 
 
-	printf("Pacekt #[%d]\n", count++);	
-	
+	printf("Pacekt #[%d]\n", count);	
 	//print Ehternet Header
 	ethernet = (struct sniff_ethernet *)(packet);
 
 	printf("Ethernet Source Addr >> ");	
-
 	for(int i=0; i<6; i++){
 		printf("%02x", (ethernet->ether_shost[i]));
 		if(i != 5)
@@ -71,7 +69,6 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	}
 		
 	printf("\nEthernet Destination Addr >> ");		
-
 	for(int i=0; i<6; i++){
 		printf("%02x", (ethernet->ether_dhost[i]));
 		if(i != 5)
@@ -79,43 +76,45 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 			
 	}		
 
-	//print IP Header
+	if(ntohs(ethernet->ether_type) != ETHERTYPE_IP){
+		printf("\nPacket #[%d] is not include IPv4 Header This Type is [%x]\n",count++, ntohs(ethernet->ether_type));
+		return;	
+	}
+
 	ip = (struct sniff_ip*)(packet + SIZE_ETHERNET);
 	
+	//print IP Header
 	ip_hl = (ip->vhl & 0x0f) * 4;
-	printf("\nIP Header size : %dBytes\n", ip_hl);
+	printf("\n\nIP Header size : %dBytes\n", ip_hl);
 
+	inet_ntop(AF_INET, &(ip->ip_src), sip, sizeof(sip));
+	inet_ntop(AF_INET, &(ip->ip_dst), dip, sizeof(dip));
 
-/*	Legacy Code... my system is little endian but network byte order is big endian
-	why printf ip address is work? 
-
-	for(int i=0; i<4; i++)
-		printf("%d ", packet[SIZE_ETHERNET+i+12]);
-	
-	for(int i=0; i<4; i++)
-		printf("%d ", packet[SIZE_ETHERNET+i+16]);
-*/
-
-	printf("Source Addr : %s\n", inet_ntoa(ip->ip_src));
-	printf("Destination Addr : %s\n", inet_ntoa(ip->ip_dst));
-
-	//print TCP Header
+	printf("Source IP Addr : %s\n", sip);
+	printf("Destination IP Addr : %s\n", dip);
 
 	tcp = (struct sniff_tcp *)(packet + SIZE_ETHERNET + ip_hl);
 
-	tcp_hl = ((tcp->hlrs & 0xf0) >> 4) * 4;
-	printf("\nTCP Header Length : %dBytes", tcp_hl);
-	
-	printf("\nSource Port : %d\n", ntohs(tcp->sport));
-	printf("Destination Port : %d\n", ntohs(tcp->dport));
-	//print HTTP Payload
+	if(ip->pro != 0x06){
+		printf("\nPacket #[%d] is not include TCP Header This Type is [%x]\n", count++, ip->pro);	
+		return;
+	}
 
+	count++;	
+	
+	//print TCP Header
+	tcp_hl = ((tcp->hlrs & 0xf0) >> 4) * 4;
+
+	printf("\nTCP Header Length : %dBytes\n", tcp_hl);
+	printf("Source TCP Port : %d\n", ntohs(tcp->sport));
+	printf("Destination TCP Port : %d\n", ntohs(tcp->dport));
+
+	//print Payload
 	payload = (u_char *)(packet + SIZE_ETHERNET + ip_hl + tcp_hl);
 	pay_l = ntohs(ip->len) - (ip_hl + tcp_hl);
 
 	if(pay_l > 0){
-		printf("\nPayload Size : %dBytes\n", pay_l);
-		if(strncmp(payload, "GET", 3) | strncmp(payload, "POST", 4) | strncmp(payload, "HTTP", 4) == 0){
+		printf("\nPayload Size : %dBytes\n\n", pay_l);
 			for(int i=0; i<pay_l; i++){
 				if(isprint(payload[i]))
 					printf("%c", payload[i]);
@@ -124,75 +123,51 @@ get_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 				else
 					printf(".");
 			}
-		}
-		else {
-			for(int i=0; i<pay_l; i++){
-				if(isprint(payload[i]))
-					printf("%02x", payload[i]);
-				else
-					printf(".");
-			}		
-		}
 	}
-	printf("\n---------------------------------------------------------------------\n\n");
+	else{
+		printf("\nNo Data...\n");
+	}
 }
 
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]){
 		pcap_t *handle;			/* Session handle */
-		char *dev;			/* The device to sniff on */
 		char errbuf[PCAP_ERRBUF_SIZE];	/* Error string */
 		struct bpf_program fp;		/* The compiled filter */
-		char filter_exp[] = "port 80";	/* The filter expression */
 		bpf_u_int32 mask;		/* Our netmask */
 		bpf_u_int32 net;		/* Our IP */
 		struct pcap_pkthdr *header;	/* The header that pcap gives us */
 		const u_char *packet;		/* The actual packet */
-		int flag = 0;
 
-		/* Define the device */
-		dev = pcap_lookupdev(errbuf);
-		if (dev == NULL) {
-			fprintf(stderr, "Couldn't find default device: %s\n", errbuf);
-			return(2);
+		if(argc < 2){
+			printf("./sniffer interface_name \n");
+			exit(0);
 		}
-		/* Find the properties for the device */
-		if (pcap_lookupnet(dev, &net, &mask, errbuf) == -1) {
-			fprintf(stderr, "Couldn't get netmask for device %s: %s\n", dev, errbuf);
-			net = 0;
-			mask = 0;
-		}
+
 		/* Open the session in promiscuous mode */
-		handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
+		handle = pcap_open_live(argv[1], BUFSIZ, 1, 1000, errbuf);
 		if (handle == NULL) {
-			fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
+			fprintf(stderr, "Couldn't open device %s: %s\n", argv[1], errbuf);
 			return(2);
 		}
 
 		/* make sure we're capturing on an Ethernet device [2] */
 		if (pcap_datalink(handle) != DLT_EN10MB) {
-			fprintf(stderr, "%s is not an Ethernet\n", dev);
+			fprintf(stderr, "%s is not an Ethernet\n", argv[1]);
 			exit(EXIT_FAILURE);
 		}
 
-		/* Compile and apply the filter */
-		if (pcap_compile(handle, &fp, filter_exp, 0, net) == -1) {
-			fprintf(stderr, "Couldn't parse filter %s: %s\n", filter_exp, pcap_geterr	
-			(handle));
-			return(2);
+		while(1){
+			if(pcap_next_ex(handle, &header, &packet)){
+				get_packet(header, packet);
+				printf("\n---------------------------------------------------------------------\n\n");			
+			}
+			else{
+				printf("Can't Capture The Packets...\n");
+			}
 		}
-		if (pcap_setfilter(handle, &fp) == -1) {
-			fprintf(stderr, "Couldn't install filter %s: %s\n", filter_exp, pcap_geterr
-			(handle));
-			return(2);
-		}
-		/* Grab a packet */
-		flag = pcap_next_ex(handle, &header, &packet);
 
-		pcap_loop(handle, 0, get_packet, NULL);
-	
 		/* And close the session */
 		pcap_close(handle);
 		return(0);
-	 }
+}
