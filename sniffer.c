@@ -108,7 +108,7 @@ void get_packet(struct pcap_pkthdr *header, const u_char *packet) {
 	printf("Source IP Addr : %s\n", sip);
 	printf("Destination IP Addr : %s\n", dip);
 
-	tcp = (struct sniff_tcp *)(packet + SIZE_ETHERNET + ip_hl);
+	tcp = (struct sniff_tcp *)(ip + ip_hl);
 
 	if(ip->pro != 0x06){
 		printf("\nPacket #[%d] is not include TCP Header This Type is [%x]\n", count++, ip->pro);	
