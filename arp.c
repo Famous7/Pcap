@@ -71,6 +71,7 @@ make_arp_packet(u_char **packet, int *length, int opcode, u_char *my_ip, u_char 
 			eth.ether_dhost[i] = 0xff;
 	}
 	else{
+		
 		for(int i=0; i<6; i++)
 			eth.ether_dhost[i] = vic_mac[i];	
 	}
@@ -96,7 +97,7 @@ make_arp_packet(u_char **packet, int *length, int opcode, u_char *my_ip, u_char 
 		arp.arp_sha[i] = my_mac[i];
 	}
 	
-	if(opcode == ARPOP_REQUEST){
+	if(opcode == ARPOP_REPLY){
 		for(int i=0; i<6; i++)
 			arp.arp_tha[i] = vic_mac[i];
 	}
@@ -147,8 +148,6 @@ int main(int argc, char *argv[]){
 	
 	strncat(filter_exp, argv[2], strlen(argv[2]));
 
-	printf("%s\n", filter_exp);
-
 	handle = pcap_open_live(argv[1], BUFSIZ, 1, 1000, errbuf);
 
 	if (handle == NULL) {
@@ -173,18 +172,12 @@ int main(int argc, char *argv[]){
 
 	packet = (u_char *)malloc(sizeof(u_char) * 1000);
 	recv_packet = (u_char *)malloc(sizeof(u_char) * 1500);
-	my_ip_addr = (u_char*)malloc(sizeof(u_char) * 16);
+	my_ip_addr = (u_char*)malloc(sizeof(u_char) * 20);
 
 	get_mac_by_inf(my_mac, argv[1]);
 	get_ip_by_inf(&my_ip_addr, argv[1]);
 	
 	make_arp_packet(&packet, &length, ARPOP_REQUEST, my_ip_addr, argv[2], my_mac, NULL);
-
-	/*printf("packet length : %d\n", length);
-	for(int i=0; i<length; i++)
-		printf("%02x", packet[i]);
-	
-	printf("\n");*/
 
 	if(pcap_sendpacket(handle, packet, length) != 0){
 		fprintf(stderr, "\nError sending the packet : %s\n", pcap_geterr(handle));
@@ -194,7 +187,7 @@ int main(int argc, char *argv[]){
 	while(pcap_next_ex(handle, &header, &recv_packet) != 1);
 
 	for(int i=6; i<12; i++)
-		vic_mac[i] = recv_packet[i];
+		vic_mac[i-6] = recv_packet[i];
 
 	memset(packet, 0, length);
 	
