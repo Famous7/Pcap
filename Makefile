@@ -1,10 +1,10 @@
-all: sniffer
+all: send_arp
 
-sniffer: sniffer.o
-	gcc -o sniffer sniffer.o -l pcap
+send_arp: send_arp.o
+	gcc -o send_arp send_arp.o -l pcap
 
-sniffer.o: sniffer.c
-	gcc -c -o sniffer.o sniffer.c
+send_arp.o: send_arp.c
+	gcc -c -o send_arp.o send_arp.c
 
 clean:
-	rm *.o sniffer
+	rm send_arp.o send_arp
