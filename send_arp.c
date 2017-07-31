@@ -211,11 +211,11 @@ int main(int argc, char *argv[]){
 			fprintf(stderr, "timeout expired\n");
 	};
 
-	printf("victim[%s] macaddress : ");
+	printf("victim[%s] macaddress : ", argv[2]);
 
 	for(int i=6; i<12; i++){
 		vic_mac[i-6] = recv_packet[i];
-		printf("%c", vic_mac[i-6]);
+		printf("%02x", vic_mac[i-6]);
 		if(i != 11)
 			printf(":");
 	}
