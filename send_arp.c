@@ -132,7 +132,7 @@ int main(int argc, char *argv[]){
 
 	int flag = 0;
 
-	if(argc < 4){
+	if(argc != 4){
 		printf("./send_arp interface_name victim_ip target_ip!!\n");
 		return -1;	
 	}
